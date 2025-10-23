@@ -59,6 +59,7 @@
 #include <stdexcept>
 #include <unordered_set>
 #include <vector>
+#include <list>
 
 /** Library version: 0xMmP (M=Major,m=minor,P=patch) */
 #define NANOFLANN_VERSION 0x171
@@ -856,118 +857,118 @@ struct SearchParameters
  * is no need to track down all the objects to free them.
  *
  */
-class PooledAllocator
-{
-    static constexpr size_t WORDSIZE  = 16;  // WORDSIZE must >= 8
-    static constexpr size_t BLOCKSIZE = 8192;
+// class PooledAllocator
+// {
+//     static constexpr size_t WORDSIZE  = 16;  // WORDSIZE must >= 8
+//     static constexpr size_t BLOCKSIZE = 8192;
 
-    /* We maintain memory alignment to word boundaries by requiring that all
-        allocations be in multiples of the machine wordsize.  */
-    /* Size of machine word in bytes.  Must be power of 2. */
-    /* Minimum number of bytes requested at a time from the system.  Must be
-     * multiple of WORDSIZE. */
+//     /* We maintain memory alignment to word boundaries by requiring that all
+//         allocations be in multiples of the machine wordsize.  */
+//     /* Size of machine word in bytes.  Must be power of 2. */
+//     /* Minimum number of bytes requested at a time from the system.  Must be
+//      * multiple of WORDSIZE. */
 
-    using Size = size_t;
+//     using Size = size_t;
 
-    Size  remaining_ = 0;  //!< Number of bytes left in current block of storage
-    void* base_ = nullptr;  //!< Pointer to base of current block of storage
-    void* loc_  = nullptr;  //!< Current location in block to next allocate
+//     Size  remaining_ = 0;  //!< Number of bytes left in current block of storage
+//     void* base_ = nullptr;  //!< Pointer to base of current block of storage
+//     void* loc_  = nullptr;  //!< Current location in block to next allocate
 
-    void internal_init()
-    {
-        remaining_   = 0;
-        base_        = nullptr;
-        usedMemory   = 0;
-        wastedMemory = 0;
-    }
+//     void internal_init()
+//     {
+//         remaining_   = 0;
+//         base_        = nullptr;
+//         usedMemory   = 0;
+//         wastedMemory = 0;
+//     }
 
-   public:
-    Size usedMemory   = 0;
-    Size wastedMemory = 0;
+//    public:
+//     Size usedMemory   = 0;
+//     Size wastedMemory = 0;
 
-    /**
-        Default constructor. Initializes a new pool.
-     */
-    PooledAllocator() { internal_init(); }
+//     /**
+//         Default constructor. Initializes a new pool.
+//      */
+//     PooledAllocator() { internal_init(); }
 
-    /**
-     * Destructor. Frees all the memory allocated in this pool.
-     */
-    ~PooledAllocator() { free_all(); }
+//     /**
+//      * Destructor. Frees all the memory allocated in this pool.
+//      */
+//     ~PooledAllocator() { free_all(); }
 
-    /** Frees all allocated memory chunks */
-    void free_all()
-    {
-        while (base_ != nullptr)
-        {
-            // Get pointer to prev block
-            void* prev = *(static_cast<void**>(base_));
-            ::free(base_);
-            base_ = prev;
-        }
-        internal_init();
-    }
+//     /** Frees all allocated memory chunks */
+//     void free_all()
+//     {
+//         while (base_ != nullptr)
+//         {
+//             // Get pointer to prev block
+//             void* prev = *(static_cast<void**>(base_));
+//             ::free(base_);
+//             base_ = prev;
+//         }
+//         internal_init();
+//     }
 
-    /**
-     * Returns a pointer to a piece of new memory of the given size in bytes
-     * allocated from the pool.
-     */
-    void* malloc(const size_t req_size)
-    {
-        /* Round size up to a multiple of wordsize.  The following expression
-            only works for WORDSIZE that is a power of 2, by masking last bits
-           of incremented size to zero.
-         */
-        const Size size = (req_size + (WORDSIZE - 1)) & ~(WORDSIZE - 1);
+//     /**
+//      * Returns a pointer to a piece of new memory of the given size in bytes
+//      * allocated from the pool.
+//      */
+//     void* malloc(const size_t req_size)
+//     {
+//         /* Round size up to a multiple of wordsize.  The following expression
+//             only works for WORDSIZE that is a power of 2, by masking last bits
+//            of incremented size to zero.
+//          */
+//         const Size size = (req_size + (WORDSIZE - 1)) & ~(WORDSIZE - 1);
 
-        /* Check whether a new block must be allocated.  Note that the first
-           word of a block is reserved for a pointer to the previous block.
-         */
-        if (size > remaining_)
-        {
-            wastedMemory += remaining_;
+//         /* Check whether a new block must be allocated.  Note that the first
+//            word of a block is reserved for a pointer to the previous block.
+//          */
+//         if (size > remaining_)
+//         {
+//             wastedMemory += remaining_;
 
-            /* Allocate new storage. */
-            const Size blocksize =
-                size > BLOCKSIZE ? size + WORDSIZE : BLOCKSIZE + WORDSIZE;
+//             /* Allocate new storage. */
+//             const Size blocksize =
+//                 size > BLOCKSIZE ? size + WORDSIZE : BLOCKSIZE + WORDSIZE;
 
-            // use the standard C malloc to allocate memory
-            void* m = ::malloc(blocksize);
-            if (!m)
-            {
-                throw std::bad_alloc();
-            }
+//             // use the standard C malloc to allocate memory
+//             void* m = ::malloc(blocksize);
+//             if (!m)
+//             {
+//                 throw std::bad_alloc();
+//             }
 
-            /* Fill first word of new block with pointer to previous block. */
-            static_cast<void**>(m)[0] = base_;
-            base_                     = m;
+//             /* Fill first word of new block with pointer to previous block. */
+//             static_cast<void**>(m)[0] = base_;
+//             base_                     = m;
 
-            remaining_ = blocksize - WORDSIZE;
-            loc_       = static_cast<char*>(m) + WORDSIZE;
-        }
-        void* rloc = loc_;
-        loc_       = static_cast<char*>(loc_) + size;
-        remaining_ -= size;
+//             remaining_ = blocksize - WORDSIZE;
+//             loc_       = static_cast<char*>(m) + WORDSIZE;
+//         }
+//         void* rloc = loc_;
+//         loc_       = static_cast<char*>(loc_) + size;
+//         remaining_ -= size;
 
-        usedMemory += size;
+//         usedMemory += size;
 
-        return rloc;
-    }
+//         return rloc;
+//     }
 
-    /**
-     * Allocates (using this pool) a generic type T.
-     *
-     * Params:
-     *     count = number of instances to allocate.
-     * Returns: pointer (of type T*) to memory buffer
-     */
-    template <typename T>
-    T* allocate(const size_t count = 1)
-    {
-        T* mem = static_cast<T*>(this->malloc(sizeof(T) * count));
-        return mem;
-    }
-};
+//     /**
+//      * Allocates (using this pool) a generic type T.
+//      *
+//      * Params:
+//      *     count = number of instances to allocate.
+//      * Returns: pointer (of type T*) to memory buffer
+//      */
+//     template <typename T>
+//     T* allocate(const size_t count = 1)
+//     {
+//         T* mem = static_cast<T*>(this->malloc(sizeof(T) * count));
+//         return mem;
+//     }
+// };
 /** @} */
 
 /** @addtogroup nanoflann_metaprog_grp Auxiliary metaprogramming stuff
@@ -1014,8 +1015,9 @@ class KDTreeBaseClass
      * buildIndex(). */
     void freeIndex(Derived& obj)
     {
-        obj.pool_.free_all();
-        obj.root_node_           = nullptr;
+        //obj.pool_.free_all();
+        obj.vpool_.clear();
+        obj.root_node_           = std::numeric_limits<size_t>::max();
         obj.size_at_index_build_ = 0;
     }
 
@@ -1054,7 +1056,7 @@ class KDTreeBaseClass
         } node_type;
 
         /** Child nodes (both=nullptr mean its a leaf node) */
-        Node *child1 = nullptr, *child2 = nullptr;
+        size_t child1 = std::numeric_limits<size_t>::max(), child2 = std::numeric_limits<size_t>::max();
     };
 
     using NodePtr      = Node*;
@@ -1065,7 +1067,7 @@ class KDTreeBaseClass
         ElementType low, high;
     };
 
-    NodePtr root_node_ = nullptr;
+    size_t root_node_ = std::numeric_limits<size_t>::max();
 
     Size leaf_max_size_ = 0;
 
@@ -1095,7 +1097,8 @@ class KDTreeBaseClass
      * than allocating memory directly when there is a large
      * number small of memory allocations.
      */
-    PooledAllocator pool_;
+    //PooledAllocator pool_;
+    std::vector<Node> vpool_;
 
     /** Returns number of points in dataset  */
     Size size(const Derived& obj) const { return obj.size_; }
@@ -1116,9 +1119,12 @@ class KDTreeBaseClass
      */
     Size usedMemory(const Derived& obj) const
     {
-        return obj.pool_.usedMemory + obj.pool_.wastedMemory +
-               obj.dataset_.kdtree_get_point_count() *
-                   sizeof(IndexType);  // pool memory and vind array memory
+        return obj.vpool_.capacity() + 
+                obj.dataset_.kdtree_get_point_count() *
+                sizeof(IndexType);  // pool memory and vind array memory
+        // return obj.pool_.usedMemory + obj.pool_.wastedMemory +
+        //        obj.dataset_.kdtree_get_point_count() *
+        //            sizeof(IndexType);  // pool memory and vind array memory
     }
 
     /**
@@ -1146,18 +1152,22 @@ class KDTreeBaseClass
      * @param right index of the last vector
      * @param bbox bounding box used as input for splitting and output for parent node
      */
-    NodePtr divideTree(
+    size_t divideTree(
         Derived& obj, const Offset left, const Offset right, BoundingBox& bbox)
     {
         assert(left < obj.dataset_.kdtree_get_point_count());
 
-        NodePtr node = obj.pool_.template allocate<Node>();  // allocate memory
+        //NodePtr node = obj.pool_.template allocate<Node>();  // allocate memory
+        size_t IDX = obj.vpool_.size();
+        obj.vpool_.push_back(Node());
+        // NodePtr node = &obj.vpool_.back();
         const auto dims = (DIM > 0 ? DIM : obj.dim_);
 
         /* If too few exemplars remain, then make this a leaf node. */
         if ((right - left) <= static_cast<Offset>(obj.leaf_max_size_))
         {
-            node->child1 = node->child2 = nullptr; /* Mark as leaf node. */
+            NodePtr node = &obj.vpool_[IDX];
+            node->child1 = node->child2 = std::numeric_limits<size_t>::max(); /* Mark as leaf node. */
             node->node_type.lr.left     = left;
             node->node_type.lr.right    = right;
 
@@ -1185,20 +1195,20 @@ class KDTreeBaseClass
             DistanceType cutval;
             middleSplit_(obj, left, right - left, idx, cutfeat, cutval, bbox);
 
-            node->node_type.sub.divfeat = cutfeat;
+            obj.vpool_[IDX].node_type.sub.divfeat = cutfeat;
 
             /* Recurse on left */
             BoundingBox left_bbox(bbox);
             left_bbox[cutfeat].high = cutval;
-            node->child1 = this->divideTree(obj, left, left + idx, left_bbox);
+            obj.vpool_[IDX].child1 = this->divideTree(obj, left, left + idx, left_bbox);
 
             /* Recurse on right */
             BoundingBox right_bbox(bbox);
             right_bbox[cutfeat].low = cutval;
-            node->child2 = this->divideTree(obj, left + idx, right, right_bbox);
+            obj.vpool_[IDX].child2 = this->divideTree(obj, left + idx, right, right_bbox);
 
-            node->node_type.sub.divlow  = left_bbox[cutfeat].high;
-            node->node_type.sub.divhigh = right_bbox[cutfeat].low;
+            obj.vpool_[IDX].node_type.sub.divlow  = left_bbox[cutfeat].high;
+            obj.vpool_[IDX].node_type.sub.divhigh = right_bbox[cutfeat].low;
 
             for (Dimension i = 0; i < dims; ++i)
             {
@@ -1207,7 +1217,7 @@ class KDTreeBaseClass
             }
         }
 
-        return node;
+        return IDX;
     }
 
     /**
@@ -1221,12 +1231,15 @@ class KDTreeBaseClass
      * @param thread_count count of std::async threads
      * @param mutex mutex for mempool allocation
      */
-    NodePtr divideTreeConcurrent(
+    size_t divideTreeConcurrent(
         Derived& obj, const Offset left, const Offset right, BoundingBox& bbox,
         std::atomic<unsigned int>& thread_count, std::mutex& mutex)
     {
         std::unique_lock<std::mutex> lock(mutex);
-        NodePtr node = obj.pool_.template allocate<Node>();  // allocate memory
+        //NodePtr node = obj.pool_.template allocate<Node>();  // allocate memory
+        size_t IDX = obj.vpool_.size();
+        obj.vpool_.push_back(Node());
+        // NodePtr node = &obj.vpool_.back();
         lock.unlock();
 
         const auto dims = (DIM > 0 ? DIM : obj.dim_);
@@ -1234,7 +1247,8 @@ class KDTreeBaseClass
         /* If too few exemplars remain, then make this a leaf node. */
         if ((right - left) <= static_cast<Offset>(obj.leaf_max_size_))
         {
-            node->child1 = node->child2 = nullptr; /* Mark as leaf node. */
+            NodePtr node = &obj.vpool_[IDX];
+            node->child1 = node->child2 = std::numeric_limits<size_t>::max(); /* Mark as leaf node. */
             node->node_type.lr.left     = left;
             node->node_type.lr.right    = right;
 
@@ -1262,9 +1276,9 @@ class KDTreeBaseClass
             DistanceType cutval;
             middleSplit_(obj, left, right - left, idx, cutfeat, cutval, bbox);
 
-            node->node_type.sub.divfeat = cutfeat;
+            obj.vpool_[IDX].node_type.sub.divfeat = cutfeat;
 
-            std::future<NodePtr> right_future;
+            std::future<size_t> right_future;
 
             /* Recurse on right concurrently, if possible */
 
@@ -1286,26 +1300,26 @@ class KDTreeBaseClass
 
             BoundingBox left_bbox(bbox);
             left_bbox[cutfeat].high = cutval;
-            node->child1            = this->divideTreeConcurrent(
+            obj.vpool_[IDX].child1            = this->divideTreeConcurrent(
                            obj, left, left + idx, left_bbox, thread_count, mutex);
 
             if (right_future.valid())
             {
                 /* Block and wait for concurrent right from above */
 
-                node->child2 = right_future.get();
+                obj.vpool_[IDX].child2 = right_future.get();
                 --thread_count;
             }
             else
             {
                 /* Otherwise, recurse on right in this thread */
 
-                node->child2 = this->divideTreeConcurrent(
+                obj.vpool_[IDX].child2 = this->divideTreeConcurrent(
                     obj, left + idx, right, right_bbox, thread_count, mutex);
             }
 
-            node->node_type.sub.divlow  = left_bbox[cutfeat].high;
-            node->node_type.sub.divhigh = right_bbox[cutfeat].low;
+            obj.vpool_[IDX].node_type.sub.divlow  = left_bbox[cutfeat].high;
+            obj.vpool_[IDX].node_type.sub.divhigh = right_bbox[cutfeat].low;
 
             for (Dimension i = 0; i < dims; ++i)
             {
@@ -1314,7 +1328,7 @@ class KDTreeBaseClass
             }
         }
 
-        return node;
+        return IDX;
     }
 
     void middleSplit_(
@@ -1452,19 +1466,21 @@ class KDTreeBaseClass
     }
 
     static void save_tree(
-        const Derived& obj, std::ostream& stream, const NodeConstPtr tree)
+        const Derived& obj, std::ostream& stream, const size_t aaa)
     {
-        save_value(stream, *tree);
-        if (tree->child1 != nullptr) { save_tree(obj, stream, tree->child1); }
-        if (tree->child2 != nullptr) { save_tree(obj, stream, tree->child2); }
+        save_value(stream, obj.vpool_[aaa]);
+        if (obj.vpool_[aaa].child1 != std::numeric_limits<size_t>::max()) { save_tree(obj, stream, obj.vpool_[aaa].child1); }
+        if (obj.vpool_[aaa].child2 != std::numeric_limits<size_t>::max()) { save_tree(obj, stream, obj.vpool_[aaa].child2); }
     }
 
-    static void load_tree(Derived& obj, std::istream& stream, NodePtr& tree)
+    static void load_tree(Derived& obj, std::istream& stream, size_t& aaa)
     {
-        tree = obj.pool_.template allocate<Node>();
-        load_value(stream, *tree);
-        if (tree->child1 != nullptr) { load_tree(obj, stream, tree->child1); }
-        if (tree->child2 != nullptr) { load_tree(obj, stream, tree->child2); }
+        // tree = obj.pool_.template allocate<Node>();
+        aaa = obj.vpool_.size();
+        obj.vpool_.push_back(Node());
+        load_value(stream, obj.vpool_[aaa]);
+        if (obj.vpool_[aaa].child1 != std::numeric_limits<size_t>::max()) { load_tree(obj, stream, obj.vpool_[aaa].child1); }
+        if (obj.vpool_[aaa].child2 != std::numeric_limits<size_t>::max()) { load_tree(obj, stream, obj.vpool_[aaa].child2); }
     }
 
     /**  Stores the index in a binary file.
@@ -1479,7 +1495,7 @@ class KDTreeBaseClass
         save_value(stream, obj.root_bbox_);
         save_value(stream, obj.leaf_max_size_);
         save_value(stream, obj.vAcc_);
-        if (obj.root_node_) save_tree(obj, stream, obj.root_node_);
+        if (obj.root_node_ != std::numeric_limits<size_t>::max()) save_tree(obj, stream, obj.root_node_);
     }
 
     /**  Loads a previous index from a binary file.
@@ -1660,6 +1676,7 @@ class KDTreeSingleIndexAdaptor
     void buildIndex()
     {
         Base::size_                = dataset_.kdtree_get_point_count();
+        Base::vpool_.reserve(Base::size_);
         Base::size_at_index_build_ = Base::size_;
         init_vind();
         this->freeIndex(*this);
@@ -1711,7 +1728,7 @@ class KDTreeSingleIndexAdaptor
     {
         assert(vec);
         if (this->size(*this) == 0) return false;
-        if (!Base::root_node_)
+        if (Base::root_node_ == std::numeric_limits<size_t>::max())
             throw std::runtime_error(
                 "[nanoflann] findNeighbors() called before building the "
                 "index.");
@@ -1883,12 +1900,13 @@ class KDTreeSingleIndexAdaptor
      */
     template <class RESULTSET>
     bool searchLevel(
-        RESULTSET& result_set, const ElementType* vec, const NodePtr node,
+        RESULTSET& result_set, const ElementType* vec, const size_t aaa,
         DistanceType mindist, distance_vector_t& dists,
         const float epsError) const
     {
+        auto* node = &Base::vpool_[aaa];
         /* If this is a leaf node, then do check and return. */
-        if ((node->child1 == nullptr) && (node->child2 == nullptr))
+        if ((node->child1 == std::numeric_limits<size_t>::max()) && (node->child2 == std::numeric_limits<size_t>::max()))
         {
             DistanceType worst_dist = result_set.worstDist();
             for (Offset i = node->node_type.lr.left;
@@ -1916,8 +1934,8 @@ class KDTreeSingleIndexAdaptor
         DistanceType diff1 = val - node->node_type.sub.divlow;
         DistanceType diff2 = val - node->node_type.sub.divhigh;
 
-        NodePtr      bestChild;
-        NodePtr      otherChild;
+        size_t      bestChild;
+        size_t      otherChild;
         DistanceType cut_dist;
         if ((diff1 + diff2) < 0)
         {
@@ -2120,7 +2138,8 @@ class KDTreeSingleIndexDynamicAdaptor_
         std::swap(Base::size_at_index_build_, tmp.Base::size_at_index_build_);
         std::swap(Base::root_node_, tmp.Base::root_node_);
         std::swap(Base::root_bbox_, tmp.Base::root_bbox_);
-        std::swap(Base::pool_, tmp.Base::pool_);
+        // std::swap(Base::pool_, tmp.Base::pool_);
+        std::swap(Base::vpool_, tmp.Base::vpool_);
         return *this;
     }
 
@@ -2130,6 +2149,7 @@ class KDTreeSingleIndexDynamicAdaptor_
     void buildIndex()
     {
         Base::size_ = Base::vAcc_.size();
+        Base::vpool_.reserve(Base::size_);
         this->freeIndex(*this);
         Base::size_at_index_build_ = Base::size_;
         if (Base::size_ == 0) return;
@@ -2183,7 +2203,7 @@ class KDTreeSingleIndexDynamicAdaptor_
     {
         assert(vec);
         if (this->size(*this) == 0) return false;
-        if (!Base::root_node_) return false;
+        if (Base::root_node_ == std::numeric_limits<size_t>::max()) return false;
         float epsError = 1 + searchParams.eps;
 
         // fixed or variable-sized container (depending on DIM)
@@ -2310,12 +2330,13 @@ class KDTreeSingleIndexDynamicAdaptor_
      */
     template <class RESULTSET>
     void searchLevel(
-        RESULTSET& result_set, const ElementType* vec, const NodePtr node,
+        RESULTSET& result_set, const ElementType* vec, const size_t aaa,
         DistanceType mindist, distance_vector_t& dists,
         const float epsError) const
     {
+        auto* node = &Base::vpool_[aaa];
         /* If this is a leaf node, then do check and return. */
-        if ((node->child1 == nullptr) && (node->child2 == nullptr))
+        if ((node->child1 == std::numeric_limits<size_t>::max()) && (node->child2 == std::numeric_limits<size_t>::max()))
         {
             DistanceType worst_dist = result_set.worstDist();
             for (Offset i = node->node_type.lr.left;
@@ -2347,8 +2368,8 @@ class KDTreeSingleIndexDynamicAdaptor_
         DistanceType diff1 = val - node->node_type.sub.divlow;
         DistanceType diff2 = val - node->node_type.sub.divhigh;
 
-        NodePtr      bestChild;
-        NodePtr      otherChild;
+        size_t      bestChild;
+        size_t      otherChild;
         DistanceType cut_dist;
         if ((diff1 + diff2) < 0)
         {
